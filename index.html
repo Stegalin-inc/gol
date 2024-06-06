@@ -1,0 +1,182 @@
+<script>
+  const CELL_SIZE = 4
+
+  const normilize = (coord, len) => (len + (coord % len)) % len
+
+  class Game {
+    play = false
+    state = []
+    nextState = []
+    w = 0
+    h = 0
+    constructor() {
+    }
+
+    step() {
+      const { w, h } = this
+      for (let i = 0; i < w; ++i)
+        for (let j = 0; j < h; ++j) {
+          const neighbours = [
+            this.getAt(j - 1, i - 1),
+            this.getAt(j - 1, i),
+            this.getAt(j - 1, i + 1),
+            this.getAt(j, i - 1),
+            this.getAt(j, i + 1),
+            this.getAt(j + 1, i - 1),
+            this.getAt(j + 1, i),
+            this.getAt(j + 1, i + 1),
+          ].reduce((a, b) => a + b, 0)
+
+
+          if (neighbours === 3) this.nextState[j * w + i] = 1
+          else if (neighbours < 2 || neighbours > 3) this.nextState[j * w + i] = 0
+          else this.nextState[j * w + i] = this.state[j * w + i]
+        }
+      this.swap()
+    }
+
+    gameLoop() {
+      if (!this.play) return
+      this.step()
+      setTimeout(() => this.gameLoop())
+    }
+
+    swap() {
+      const tmp = this.state
+      this.state = this.nextState
+      this.nextState = tmp
+    }
+
+    getAt(y, x) {
+      const { w, h } = this
+      return this.state[normilize(y, h) * w + normilize(x, w)]
+    }
+
+    invertAt(y, x) {
+      const { w } = this
+      this.state[y * w + x] = 1 - this.state[y * w + x]
+    }
+
+    start() {
+      this.play = true
+      this.gameLoop()
+    }
+
+    stop() {
+      this.play = false
+    }
+
+    randomize() {
+      const { w, h } = this
+      for (let i = 0; i < 100; ++i) {
+        this.state[normilize(Math.floor(Math.random() * h), h) * w + normilize(Math.floor(Math.random() * w), w)] = 1
+      }
+    }
+
+    /**
+     * @param {CanvasRenderingContext2D} ctx
+     */
+    render(ctx) {
+      const { w, h } = this
+      ctx.clearRect(0, 0, w * CELL_SIZE, h * CELL_SIZE)
+
+      for (let i = 0; i < w; ++i)
+        for (let j = 0; j < h; ++j)
+          if (this.getAt(j, i))
+            ctx.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+    }
+
+    /**
+     * @param {HTMLDivElement} container
+     */
+    htmlRenderer(container) {
+      for (let i = 0; i < this.state.length; ++i) {
+        if (this.state[i])
+          container.children[i].classList.add('x')
+        else
+          container.children[i].classList.remove('x')
+
+      }
+    }
+
+    resize(w = 0, h = 0) {
+      this.w = w
+      this.h = h
+      this.state = new Uint8Array(w * h)
+      this.nextState = new Uint8Array(w * h)
+
+      // GLIDER
+      this.state[0] = 1
+      this.state[w + 1] = 1
+      this.state[w + 2] = 1
+      this.state[2 * w] = 1
+      this.state[2 * w + 1] = 1
+    }
+  }
+
+  const game = new Game()
+
+  window.onload = () => {
+    const canvas = document.createElement('canvas')
+    document.body.appendChild(canvas)
+    const ctx = canvas.getContext('2d')
+    const genTimeContainer = document.getElementById('gen-time')
+
+    canvas.addEventListener('click', (e) => {
+      const x = Math.floor(e.offsetX / CELL_SIZE)
+      const y = Math.floor(e.offsetY / CELL_SIZE)
+      game.invertAt(y, x)
+    })
+
+    const render = () => {
+      const t1 = performance.now()
+      game.render(ctx)
+      if (game.play) game.step()
+      const t2 = performance.now()
+      genTimeContainer.innerText = 'gen time: ' + (t2 - t1).toFixed(2) + 'ms'
+      requestAnimationFrame(render)
+    }
+
+    render()
+
+    document.getElementById('random-button').addEventListener('click', () => {
+      game.randomize()
+    })
+
+    document.getElementById('step-button').addEventListener('click', () => {
+      game.step()
+    })
+
+    const resize = (w = 0, h = 0) => {
+      game.resize(w, h)
+      canvas.height = h * CELL_SIZE
+      canvas.width = w * CELL_SIZE
+    }
+
+    resize(100, 100)
+
+    document.getElementById('apply-button').addEventListener('click', () => {
+      const w = +document.getElementById('w-input').value
+      const h = +document.getElementById('h-input').value
+      resize(w, h)
+    })
+
+    document.getElementById('play-button').addEventListener('click', (e) => {
+      game.play = !game.play
+      e.target.innerText = game.play ? 'Stop' : 'Play'
+    })
+
+
+  }
+
+</script>
+<div class="controls">
+
+  <input type="number" name="width" id="w-input" min="2" max="100000" value="100">
+  <input type="number" name="height" id="h-input" min="2" max="100000" value="100">
+  <button id="apply-button">Apply</button>
+  <button id="play-button">Start</button>
+  <button id="random-button">Random</button>
+  <button id="step-button">Step</button>
+  <span id="gen-time"></span>
+</div>
